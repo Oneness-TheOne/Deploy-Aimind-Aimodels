@@ -1,0 +1,58 @@
+# --- 환경/시크릿 ---
+.env
+.env.local
+.env.*.local
+
+# --- Python ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+eggs/
+*.egg-info/
+*.egg
+
+# --- PyTorch / 모델 캐시 ---
+*.pt
+*.pth
+*.onnx
+.cache/
+huggingface/
+transformers_cache/
+
+# --- 데이터 ---
+data/
+image_to_json/result/
+image_to_json/uploads/
+jsonToLlm/results/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- IDE/에디터 ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- 테스트/coverage ---
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# --- 기타 ---
+*.log
+memo.txt
+
+.dockerignore
+Dockerfile
