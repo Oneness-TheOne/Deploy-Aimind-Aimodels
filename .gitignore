@@ -27,11 +27,14 @@ eggs/
 huggingface/
 transformers_cache/
 
-# --- 데이터 ---
+# --- 데이터 / 벡터 DB (ChromaDB 등, 실행 시 생성) ---
 data/
 image_to_json/result/
 image_to_json/uploads/
 jsonToLlm/results/
+jsonToLlm/htp_knowledge_base/
+chroma_db/
+*.sqlite3
 
 # --- OS ---
 .DS_Store
