@@ -15,6 +15,17 @@ def check_inclusion(inner_bbox, outer_bbox):
     
     return (ox <= icx <= ox + ow) and (oy <= icy <= oy + oh)
 
+
+def bbox_union(bboxes):
+    """여러 bbox (x,y,w,h) 의 최소 외접 사각형을 반환. 비어 있으면 None."""
+    if not bboxes:
+        return None
+    x_min = min(b['x'] for b in bboxes)
+    y_min = min(b['y'] for b in bboxes)
+    x_max = max(b['x'] + b['w'] for b in bboxes)
+    y_max = max(b['y'] + b['h'] for b in bboxes)
+    return {'x': x_min, 'y': y_min, 'w': x_max - x_min, 'h': y_max - y_min}
+
 def get_position_text(x, y, w, h, context_w, context_h, relative_to="화면"):
     # 중심점 기준 위치 텍스트 생성
     cx, cy = get_centroid(x, y, w, h)
@@ -87,6 +98,9 @@ def process_tree_json(json_input):
         tree_nx, tree_ny = 0.5, 0.5
         tree_pos_summary = "나무 전체 식별 불가"
 
+    # 포함 판정용 영역: 이 이미지의 모든 bbox 합집합 (legacy bbox 어긋남으로 인한 '없다' 오판 방지, 라벨 무관 범용)
+    region_for_inclusion = bbox_union(bboxes) if bboxes else tree_total_bbox
+
     # 3. 데이터 구조화 함수
     result = {
         "이미지_메타정보": {
@@ -107,7 +121,7 @@ def process_tree_json(json_input):
 
     # 4. 세부 그룹 처리 로직
     
-    # (1) 나무 구성요소 (수관, 기둥, 가지, 뿌리)
+    # (1) 나무 구성요소 (수관, 기둥, 가지, 뿌리) — 포함 판정은 나무 영역 합집합 기준
     core_parts = ["수관", "기둥", "가지", "뿌리"]
     for part in core_parts:
         if part in objects_by_label:
@@ -115,7 +129,7 @@ def process_tree_json(json_input):
             result["나무_구성요소_관계"][part] = {
                 "위치": get_position_text(obj['x'], obj['y'], obj['w'], obj['h'], img_w, img_h, relative_to="나무"),
                 "면적비율": calculate_area_ratio(obj['w'], obj['h'], img_w, img_h),
-                "나무_내부_포함": check_inclusion(obj, tree_total_bbox)
+                "나무_내부_포함": check_inclusion(obj, region_for_inclusion)
             }
 
     accessories = ["나뭇잎", "열매", "그네", "새", "다람쥐", "꽃"]
@@ -148,7 +162,7 @@ def process_tree_json(json_input):
                 else:
                     pos_text = "위치 판단 불가"
 
-                is_inside = check_inclusion(obj, tree_total_bbox)
+                is_inside = check_inclusion(obj, region_for_inclusion)
                 
                 result["나무_내_부가요소"][acc] = {
                     "위치": pos_text,
@@ -242,6 +256,9 @@ def process_person_json(json_input, person_type="남자사람"):
         person_nx, person_ny = 0.5, 0.5
         person_pos_summary = "사람 전체 식별 불가"
 
+    # 포함 판정용 영역: 이 이미지의 모든 bbox 합집합 (라벨 무관 범용)
+    region_for_inclusion = bbox_union(bboxes) if bboxes else person_total_bbox
+
     # 3. 데이터 구조화
     result = {
         "이미지_메타정보": {
@@ -288,7 +305,7 @@ def process_person_json(json_input, person_type="남자사람"):
                 else:
                     pos_text = "위치 판단 불가"
                 
-                is_inside = check_inclusion(obj, person_total_bbox)
+                is_inside = check_inclusion(obj, region_for_inclusion)
                 
                 result["얼굴_구성요소"][part] = {
                     "위치": pos_text,
@@ -315,7 +332,7 @@ def process_person_json(json_input, person_type="남자사람"):
             if len(objs) == 1:
                 obj = objs[0]
                 pos_text = get_position_text(obj['x'], obj['y'], obj['w'], obj['h'], img_w, img_h, relative_to="사람")
-                is_inside = check_inclusion(obj, person_total_bbox)
+                is_inside = check_inclusion(obj, region_for_inclusion)
                 
                 result["신체_구성요소"][part] = {
                     "위치": pos_text,
@@ -347,7 +364,7 @@ def process_person_json(json_input, person_type="남자사람"):
             if len(objs) == 1:
                 obj = objs[0]
                 pos_text = get_position_text(obj['x'], obj['y'], obj['w'], obj['h'], img_w, img_h, relative_to="사람")
-                is_inside = check_inclusion(obj, person_total_bbox)
+                is_inside = check_inclusion(obj, region_for_inclusion)
                 
                 result["의류_및_액세서리"][acc] = {
                     "위치": pos_text,
@@ -412,6 +429,9 @@ def process_house_json(json_input):
         house_nx, house_ny = 0.5, 0.5
         house_pos_summary = "집 전체 식별 불가"
 
+    # 포함 판정용 영역: 이 이미지의 모든 bbox 합집합 (라벨 무관 범용)
+    region_for_inclusion = bbox_union(bboxes) if bboxes else house_total_bbox
+
     # 3. 데이터 구조화
     result = {
         "이미지_메타정보": {
@@ -458,7 +478,7 @@ def process_house_json(json_input):
                 else:
                     pos_text = "위치 판단 불가"
                 
-                is_inside = check_inclusion(obj, house_total_bbox)
+                is_inside = check_inclusion(obj, region_for_inclusion)
                 
                 result["집_구성요소"][part] = {
                     "위치": pos_text,

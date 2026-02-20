@@ -49,6 +49,16 @@ IMAGE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 IMAGE_RESULT_DIR.mkdir(parents=True, exist_ok=True)
 JSON_TO_LLM_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
+
+def _run_dir_for_analyze(child_name: str, age_str: str, gender_kr: str, timestamp: str) -> Path:
+    """분석 1회당 폴더: 이름_나이_성별_시작시각 (해당 실행의 모든 JSON·이미지 저장)."""
+    safe_name = (child_name or "분석").strip() or "분석"
+    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in safe_name)[:50]
+    run_dir = JSON_TO_LLM_RESULTS_DIR / f"{safe_name}_{age_str}_{gender_kr}_{timestamp}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
+
+
 if str(IMAGE_TO_JSON_DIR) not in sys.path:
     sys.path.append(str(IMAGE_TO_JSON_DIR))
 if str(JSON_TO_LLM_DIR) not in sys.path:
@@ -189,15 +199,17 @@ async def analyze(
         ("woman", "여자사람", woman),
     ]
 
+    run_dir = _run_dir_for_analyze(child_name, age_str, gender_kr, timestamp)
+
     results = {}
     per_object_metrics = []
     folder_keys = []
     for object_type, label_kr, upload in uploads:
         ext = Path(upload.filename or "").suffix or ".jpg"
         stem = f"{label_kr}_{age_str}_{gender_kr}_{timestamp}"
-        input_path = IMAGE_UPLOAD_DIR / f"{stem}{ext}"
-        output_json_path = IMAGE_RESULT_DIR / f"{stem}.json"
-        output_image_path = IMAGE_RESULT_DIR / f"{stem}_box.jpg"
+        input_path = run_dir / f"{stem}{ext}"
+        output_json_path = run_dir / f"{stem}.json"
+        output_image_path = run_dir / f"{stem}_box.jpg"
 
         _save_upload_file(upload, input_path)
 
@@ -238,12 +250,21 @@ async def analyze(
             raise HTTPException(status_code=500, detail=f"{label_kr} 해석 실패: {interp_results.get('error')}")
 
         interpretation = interp_results.get("interpretation")
-        interpretation_path = JSON_TO_LLM_RESULTS_DIR / f"interpretation_{stem}.json"
+        interpretation_path = run_dir / f"interpretation_{stem}.json"
         if interpretation:
             interpretation_path.write_text(
                 json.dumps(interpretation, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
+
+        legacy_path = run_dir / f"{stem}_legacy.json"
+        try:
+            legacy_path.write_text(
+                json.dumps(original, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
 
         object_metrics = compute_image_metrics(original, str(input_path), use_color=False)
         per_object_metrics.append(object_metrics)
@@ -259,6 +280,7 @@ async def analyze(
         results[object_type] = {
             "label": label_kr,
             "image_json": rag_result,
+            "legacy_json": original,
             "interpretation": interpretation,
             "analysis": interp_results.get("analysis"),
             "box_image_base64": box_image_base64,
@@ -347,14 +369,15 @@ async def analyze(
             [{"category": "analysis_based", "items": legacy_items}] if legacy_items else []
         )
 
-    # 심리 해석(results)과 함께 전체 심리 결과 4개 필드 생성 (구조 고정: 종합/인상적/구조적/표상적)
+    # 심리 해석(results)과 함께 전체 심리 결과 생성 (종합/인상적/구조적/표상적 + 긍정적인_측면, 주의_사항)
     전체_심리_결과 = {
         "종합_요약": "",
         "인상적_분석": "",
         "구조적_분석_요약": "",
         "표상적_분석_종합": "",
+        "긍정적인_측면": [],
+        "주의_사항": [],
     }
-    # 분석 결과(results)를 보내고 전체 심리 결과 4필드를 같이 요청·수신 (요약이 아닌 분석 기반 작성)
     try:
         overall = generate_overall_psychology(
             results, child_name, age_str, gender_kr,
@@ -366,6 +389,10 @@ async def analyze(
             전체_심리_결과["인상적_분석"] = (overall.get("인상적_분석") or "").strip()
             전체_심리_결과["구조적_분석_요약"] = (overall.get("구조적_분석_요약") or "").strip()
             전체_심리_결과["표상적_분석_종합"] = (overall.get("표상적_분석_종합") or "").strip()
+            if isinstance(overall.get("긍정적인_측면"), list):
+                전체_심리_결과["긍정적인_측면"] = [str(x).strip() for x in overall["긍정적인_측면"] if str(x).strip()]
+            if isinstance(overall.get("주의_사항"), list):
+                전체_심리_결과["주의_사항"] = [str(x).strip() for x in overall["주의_사항"] if str(x).strip()]
     except Exception as e:
         print(f"[analyze] 전체 심리 결과 생성 실패(무시): {e}")
 
@@ -405,7 +432,7 @@ async def analyze(
         save_obj = _strip_base64(save_obj)
         safe_name = (child_name or "분석").strip() or "분석"
         safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in safe_name)[:50]
-        full_path = JSON_TO_LLM_RESULTS_DIR / f"전체결과_{safe_name}_{timestamp}.json"
+        full_path = run_dir / f"전체결과_{safe_name}_{timestamp}.json"
         full_path.write_text(json.dumps(save_obj, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
         print(f"[analyze] 전체결과 JSON 저장 실패(무시): {e}")

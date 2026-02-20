@@ -479,6 +479,8 @@ def generate_overall_psychology(results, child_name, age_str, gender_kr, api_key
         "인상적_분석": "",
         "구조적_분석_요약": "",
         "표상적_분석_종합": "",
+        "긍정적인_측면": [],
+        "주의_사항": [],
     }
     if not GEMINI_AVAILABLE:
         print("[generate_overall_psychology] google-genai 미설치로 스킵")
@@ -518,14 +520,18 @@ def generate_overall_psychology(results, child_name, age_str, gender_kr, api_key
 - 아동을 지칭할 때는 반드시 "{call_name_ui}" 형태로만 쓸 것. 예: "{call_name_ui} 그림에서", "{call_name_ui} 그림 전반에서". "{child_name} 아동", "{child_name} 아동의" 같은 표현은 사용하지 마세요.
 - "종합_요약", "인상적_분석", "표상적_분석_종합"은 **서로 다른 관점·다른 문장**으로 쓸 것. 같은 문장 반복 금지.
 - "구조적_분석_요약"은 빈 문자열 "" 로 두세요.
+- "긍정적인_측면": 그림 종합에서 드러나는 **긍정적 측면**을 문장 단위로 1~5개 배열로 작성 (예: "풍부한 상상력", "감성 발달" 등).
+- "주의_사항": 관심·지원이 필요한 측면을 문장 단위로 1~5개 배열로 작성 (예: "자신감 지지가 도움 됨", "내면의 안정감 노력" 등). 없으면 빈 배열 [].
 
-**아래 4개 키만 가진 JSON 하나만** 출력하세요. 다른 설명·마크다운 없이 JSON만 출력합니다.
+**아래 6개 키만 가진 JSON 하나만** 출력하세요. 다른 설명·마크다운 없이 JSON만 출력합니다.
 
 출력 구조 (키 이름 그대로):
 - "종합_요약": 전체 심리·정서·발달 종합 한 문단 (2~3문장)
 - "인상적_분석": 인상적 관점 한 문단 (2~3문장)
 - "구조적_분석_요약": ""
 - "표상적_분석_종합": 표상적 관점 한 문단 (2~3문장)
+- "긍정적인_측면": ["문장1", "문장2", ...]  (배열, 1~5개)
+- "주의_사항": ["문장1", "문장2", ...]  (배열, 0~5개)
 """
 
     config = types.GenerateContentConfig(
@@ -572,11 +578,17 @@ def generate_overall_psychology(results, child_name, age_str, gender_kr, api_key
                         text = text[start : end + 1]
             parsed = json.loads(text)
             if isinstance(parsed, dict):
+                def _str_list(val):
+                    if not isinstance(val, list):
+                        return []
+                    return [str(x).strip() for x in val if str(x).strip()]
                 return {
                     "종합_요약": (parsed.get("종합_요약") or "").strip(),
                     "인상적_분석": (parsed.get("인상적_분석") or "").strip(),
                     "구조적_분석_요약": (parsed.get("구조적_분석_요약") or "").strip(),
                     "표상적_분석_종합": (parsed.get("표상적_분석_종합") or "").strip(),
+                    "긍정적인_측면": _str_list(parsed.get("긍정적인_측면")),
+                    "주의_사항": _str_list(parsed.get("주의_사항")),
                 }
             print("[generate_overall_psychology] 응답이 JSON 객체가 아님")
             return default_out
