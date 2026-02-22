@@ -111,25 +111,13 @@ def _compute_rag_features(r, h, w, names, en_to_kr: dict) -> tuple[dict, dict, l
         else:
             class_conf[en] = max(class_conf[en], conf)
 
-        area = 0.0
-        cx_sum, cy_sum, cnt = 0.0, 0.0, 0
-        if m_data is not None and i < m_data.shape[0]:
-            mask = m_data[i]
-            if mask.ndim == 3:
-                mask = mask.squeeze()
-            area = float(np.sum(mask > 0.5))
-            ys, xs = np.where(mask > 0.5)
-            if len(ys) > 0:
-                cx_sum = float(np.sum(xs))
-                cy_sum = float(np.sum(ys))
-                cnt = len(ys)
-        else:
-            xyxy = boxes.xyxy[i]
-            x1, y1, x2, y2 = float(xyxy[0]), float(xyxy[1]), float(xyxy[2]), float(xyxy[3])
-            area = (x2 - x1) * (y2 - y1)
-            cx_sum = (x1 + x2) / 2 * 1
-            cy_sum = (y1 + y2) / 2 * 1
-            cnt = 1
+        xyxy = boxes.xyxy[i]
+        x1, y1, x2, y2 = float(xyxy[0]), float(xyxy[1]), float(xyxy[2]), float(xyxy[3])
+        # 면적·위치 모두 bbox 기준(원본 이미지 좌표)으로 통일
+        area = (x2 - x1) * (y2 - y1)
+        cx_sum = (x1 + x2) / 2.0
+        cy_sum = (y1 + y2) / 2.0
+        cnt = 1
 
         if en not in class_pixels:
             class_pixels[en] = 0.0
@@ -177,7 +165,7 @@ def _make_summary_text(object_type: str, features: dict, detected_kr: list) -> s
         if kr in features and features[kr].get("has") == 1:
             cx = features[kr].get("center_x", -1)
             if cx >= 0:
-                pos = "왼쪽" if cx < 0.4 else ("오른쪽" if cx > 0.6 else "가운데")
+                pos = "왼쪽" if cx < 0.35 else ("오른쪽" if cx > 0.65 else "가운데")
                 parts.append(f"{kr}는 {pos}에 위치합니다.")
     return " ".join(parts)
 
